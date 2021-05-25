@@ -434,3 +434,4 @@ var MockerClient = /*@__PURE__*/(function (MockerCore) {
 }(MockerCore));
 
 exports.MockerClient = MockerClient;
+//# sourceMappingURL=index.cjs.js.map

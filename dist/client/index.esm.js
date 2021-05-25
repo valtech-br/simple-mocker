@@ -421,3 +421,4 @@ var MockerClient = /*@__PURE__*/(function (MockerCore) {
 }(MockerCore));
 
 export { MockerClient };
+//# sourceMappingURL=index.esm.js.map

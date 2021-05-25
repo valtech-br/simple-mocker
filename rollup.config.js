@@ -34,15 +34,18 @@ export default [{
   output: [{
     format: 'cjs',
     file: 'dist/server/index.cjs.js',
+    sourcemap: true,
     globals
   }, {
     name: 'MockerApp',
     format: 'umd',
     file: 'dist/server/index.umd.js',
+    sourcemap: true,
     globals
   }, {
     format: 'esm',
     file: 'dist/server/index.esm.js',
+    sourcemap: true,
     globals
   }],
   plugins
@@ -52,15 +55,18 @@ export default [{
   output: [{
     format: 'cjs',
     file: 'dist/client/index.cjs.js',
+    sourcemap: true,
     globals
   }, {
     name: 'MockerApp',
     format: 'umd',
     file: 'dist/client/index.umd.js',
+    sourcemap: true,
     globals
   }, {
     format: 'esm',
     file: 'dist/client/index.esm.js',
+    sourcemap: true,
     globals
   }],
   plugins
