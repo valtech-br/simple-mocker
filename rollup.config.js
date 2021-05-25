@@ -1,62 +1,58 @@
 import commonjs from '@rollup/plugin-commonjs'; // Convert CommonJS modules to ES6
 import buble from '@rollup/plugin-buble'; // Transpila com considerável suporte a navegadores
-import nodePolyfills from 'rollup-plugin-node-polyfills'
+import builtins from 'rollup-plugin-node-builtins'
+import nodeGlobals from 'rollup-plugin-node-globals'
+import resolve from 'rollup-plugin-node-resolve'
+import { uglify } from 'rollup-plugin-uglify'
 
 const external = [
   'faker',
   'lodash.get',
   '@hapi/hapi',
-  'axios',
-  'fs',
-  'path',
-  'events'
+  'axios'
 ]
 
 const globals = {
   'faker': 'faker',
   'lodash.get': 'get',
   '@hapi/hapi': 'hapi',
-  'axios': 'axios',
-  'fs': 'fs',
-  'path': 'path',
-  'events': 'EventEmitter'
+  'axios': 'axios'
 }
 
 const plugins = [
+  nodeGlobals(),
+  builtins(),
+  resolve({
+    preferBuiltins: false
+  }),
   commonjs(),
   buble({ transforms: { asyncAwait: false } }), // Transpila para ES5
-  nodePolyfills({ fs: true }),
 ]
 
 export default [{
   input: 'src/server.js', // Caminho relativo ao package.json
   external,
+  plugins,
   output: [{
-    format: 'cjs',
-    file: 'dist/server/index.cjs.js',
-    sourcemap: true,
-    globals
-  }, {
-    name: 'MockerApp',
+    name: 'MockerServer',
     format: 'umd',
     file: 'dist/server/index.umd.js',
     sourcemap: true,
     globals
-  }, {
-    format: 'esm',
-    file: 'dist/server/index.esm.js',
-    sourcemap: true,
-    globals
-  }],
-  plugins
+  }]
 }, {
   input: 'src/client.js', // Caminho relativo ao package.json
   external,
+  plugins,
   output: [{
-    format: 'cjs',
-    file: 'dist/client/index.cjs.js',
+    name: 'MockeClient',
+    format: 'iife',
+    file: 'dist/client/index.min.js',
     sourcemap: true,
-    globals
+    globals,
+    plugins: [
+      uglify()
+    ]
   }, {
     name: 'MockerApp',
     format: 'umd',
@@ -68,6 +64,5 @@ export default [{
     file: 'dist/client/index.esm.js',
     sourcemap: true,
     globals
-  }],
-  plugins
+  }]
 }];
