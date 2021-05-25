@@ -1,0 +1,12 @@
+#
+# Folders
+
+.vs/
+node_modules/
+
+#
+# Files
+
+.DS_Store
+*.user
+*.log
