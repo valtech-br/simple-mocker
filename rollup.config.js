@@ -61,4 +61,15 @@ export default [{
     sourcemap: true,
     globals
   }]
+}, {
+  input: 'src/test.js', // Caminho relativo ao package.json
+  external,
+  plugins,
+  output: [{
+    name: 'MockerTest',
+    format: 'esm',
+    file: 'dist/test/index.esm.js',
+    sourcemap: true,
+    globals
+  }]
 }];

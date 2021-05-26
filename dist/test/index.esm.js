@@ -1,3 +1,5 @@
+import faker from 'faker';
+
 var fs = {};
 
 // Copyright Joyent, Inc. and other Node contributors.
@@ -1155,40 +1157,23 @@ var MockerCore = /*@__PURE__*/(function (EventEmitter) {
 }(EventEmitter));
 
 /**
- * Class for the client app to request data from the server
+ * Class for the server app to create mock data
  * @extends MockerCore
  */
-var MockerClient = /*@__PURE__*/(function (MockerCore) {
-  function MockerClient(args) {
+var MockerTest = /*@__PURE__*/(function (MockerCore) {
+  function MockerTest(args) {
     MockerCore.call(this, args);
-    if (args.transport) {
-      this.transport = args.transport.create({
-        baseURL: 'http://' + this._host + ':' + this._port + '/'
-      });
-    }
+    this.faker = faker;
     this.registerServices();
+    this.seedServices();
   }
 
-  if ( MockerCore ) MockerClient.__proto__ = MockerCore;
-  MockerClient.prototype = Object.create( MockerCore && MockerCore.prototype );
-  MockerClient.prototype.constructor = MockerClient;
-  /**
-   * @method createVuexModules
-   * Create a vuex module for each configured services
-   * @returns {Object} - Object of vuex modules
-   */
-  MockerClient.prototype.createVuexModules = function createVuexModules () {
-    var this$1 = this;
+  if ( MockerCore ) MockerTest.__proto__ = MockerCore;
+  MockerTest.prototype = Object.create( MockerCore && MockerCore.prototype );
+  MockerTest.prototype.constructor = MockerTest;
 
-    var modules = {};
-    Object.keys(this.services).forEach(function (service) {
-      modules[service] = this$1.services[service].createStore();
-    });
-    return modules
-  };
-
-  return MockerClient;
+  return MockerTest;
 }(MockerCore));
 
-export { MockerClient };
+export { MockerTest };
 //# sourceMappingURL=index.esm.js.map

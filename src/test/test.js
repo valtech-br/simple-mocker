@@ -1,9 +1,10 @@
+import faker from 'faker'
 import MockerCore from '../core/core.js'
 /**
- * Class for the client app to request data from the server
+ * Class for the server app to create mock data
  * @extends MockerCore
  */
-export default class MockerClient extends MockerCore {
+export default class MockerTest extends MockerCore {
   /**
    * Create mock app
    * @param {Object} options - Options for the app creation
@@ -15,23 +16,8 @@ export default class MockerClient extends MockerCore {
    */
   constructor(args) {
     super(args)
-    if (args.transport) {
-      this.transport = args.transport.create({
-        baseURL: 'http://' + this._host + ':' + this._port + '/'
-      })
-    }
+    this.faker = faker
     this.registerServices()
-  }
-  /**
-   * @method createVuexModules
-   * Create a vuex module for each configured services
-   * @returns {Object} - Object of vuex modules
-   */
-  createVuexModules () {
-    const modules = {}
-    Object.keys(this.services).forEach(service => {
-      modules[service] = this.services[service].createStore()
-    })
-    return modules
+    this.seedServices()
   }
 }

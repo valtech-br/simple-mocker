@@ -19,9 +19,6 @@ export default class MockerServer extends MockerCore {
   constructor(args) {
     super(args)
     this.faker = faker
-    this.transport = {
-      get: url => this.transportGet(url)
-    }
     this.createServer()
     this.registerServices()
     this.seedServices()
@@ -42,39 +39,6 @@ export default class MockerServer extends MockerCore {
       routes: {
         cors: true
       }
-    })
-  }
-  /**
-   * @method transportGet
-   * Mocks a url request
-   */
-  transportGet (url) {
-    if (!url) {
-      this.handleError('No path')
-    }
-    if (url.includes('?')) {
-      const service = url.split('?')[0]
-      const params = url.split('?')[1]
-      let limit = params.split('&').filter(arg => arg.includes('limit'))[0]
-      let skip = params.split('&').filter(arg => arg.includes('skip'))[0]
-      limit = parseInt(limit.split('=')[1])
-      skip = parseInt(skip.split('=')[1])
-      const data = this.service(service).items.filter(item => item.id <= limit + skip && item.id > skip)
-      const total = this.service(service).items.length
-      return Promise.resolve({ data, total })
-    } else {
-      const service = url.split('/')[0]
-      const params = url.split('/')[1]
-      return Promise.resolve(this.service(service).items.filter(item => item.id === parseInt(params))[0])
-    }
-  }
-  /**
-   * @method seedServices
-   * Seeds each service with sample data.
-   */
-  seedServices () {
-    Object.values(this.services).forEach(service => {
-      service.generateCachedItems()
     })
   }
   /**

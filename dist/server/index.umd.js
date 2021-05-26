@@ -1002,6 +1002,7 @@
    */
   var MockerCore = /*@__PURE__*/(function (EventEmitter) {
     function MockerCore(ref) {
+      var this$1 = this;
       var port = ref.port; if ( port === void 0 ) port = 3001;
       var host = ref.host; if ( host === void 0 ) host = 'localhost';
       var services = ref.services; if ( services === void 0 ) services = {};
@@ -1016,6 +1017,9 @@
       this._services = services;
       this._servicesPath = servicesPath;
       this.debug = debug;
+      this.transport = {
+        get: function (url) { return this$1.transportGet(url); }
+      };
     }
 
     if ( EventEmitter ) MockerCore.__proto__ = EventEmitter;
@@ -1082,6 +1086,30 @@
       this.log(this.servicesRegistered);
     };
     /**
+     * @method transportGet
+     * Mocks a url request
+     */
+    MockerCore.prototype.transportGet = function transportGet (url) {
+      if (!url) {
+        this.handleError('No path');
+      }
+      if (url.includes('?')) {
+        var service = url.split('?')[0];
+        var params = url.split('?')[1];
+        var limit = params.split('&').filter(function (arg) { return arg.includes('limit'); })[0];
+        var skip = params.split('&').filter(function (arg) { return arg.includes('skip'); })[0];
+        limit = parseInt(limit.split('=')[1]);
+        skip = parseInt(skip.split('=')[1]);
+        var data = this.service(service).items.filter(function (item) { return item.id <= limit + skip && item.id > skip; });
+        var total = this.service(service).items.length;
+        return Promise.resolve({ data: data, total: total })
+      } else {
+        var service$1 = url.split('/')[0];
+        var params$1 = url.split('/')[1];
+        return Promise.resolve(this.service(service$1).items.filter(function (item) { return item.id === parseInt(params$1); })[0])
+      }
+    };
+    /**
      * @method checkFile
      * Check a filename if it a json and returns it's name
      * @param {string} file - file name with format
@@ -1104,6 +1132,15 @@
         this.handleError(("No service with the name " + serviceName + " registered"));
       }
       return this.services[serviceName]
+    };
+    /**
+     * @method seedServices
+     * Seeds each service with sample data.
+     */
+    MockerCore.prototype.seedServices = function seedServices () {
+      Object.values(this.services).forEach(function (service) {
+        service.generateCachedItems();
+      });
     };
     /**
      * @method onError
@@ -1134,13 +1171,8 @@
    */
   var MockerServer = /*@__PURE__*/(function (MockerCore) {
     function MockerServer(args) {
-      var this$1 = this;
-
       MockerCore.call(this, args);
       this.faker = faker__default['default'];
-      this.transport = {
-        get: function (url) { return this$1.transportGet(url); }
-      };
       this.createServer();
       this.registerServices();
       this.seedServices();
@@ -1167,39 +1199,6 @@
         routes: {
           cors: true
         }
-      });
-    };
-    /**
-     * @method transportGet
-     * Mocks a url request
-     */
-    MockerServer.prototype.transportGet = function transportGet (url) {
-      if (!url) {
-        this.handleError('No path');
-      }
-      if (url.includes('?')) {
-        var service = url.split('?')[0];
-        var params = url.split('?')[1];
-        var limit = params.split('&').filter(function (arg) { return arg.includes('limit'); })[0];
-        var skip = params.split('&').filter(function (arg) { return arg.includes('skip'); })[0];
-        limit = parseInt(limit.split('=')[1]);
-        skip = parseInt(skip.split('=')[1]);
-        var data = this.service(service).items.filter(function (item) { return item.id <= limit + skip && item.id > skip; });
-        var total = this.service(service).items.length;
-        return Promise.resolve({ data: data, total: total })
-      } else {
-        var service$1 = url.split('/')[0];
-        var params$1 = url.split('/')[1];
-        return Promise.resolve(this.service(service$1).items.filter(function (item) { return item.id === parseInt(params$1); })[0])
-      }
-    };
-    /**
-     * @method seedServices
-     * Seeds each service with sample data.
-     */
-    MockerServer.prototype.seedServices = function seedServices () {
-      Object.values(this.services).forEach(function (service) {
-        service.generateCachedItems();
       });
     };
     /**

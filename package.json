@@ -2,9 +2,10 @@
   "name": "@br-fe/mocker",
   "version": "0.0.0",
   "description": "Moker server for front-end develpment",
-  "main": "./dist/client/index.min.js",
+  "main": "./dist/client/index.esm.js",
   "exports": {
     "./server": "./dist/server/index.umd.js",
+    "./test": "./dist/server/index.esm.js",
     "./client": {
       "module": "./dist/client/index.esm.js",
       "web": "./dist/client/index.min.js"
