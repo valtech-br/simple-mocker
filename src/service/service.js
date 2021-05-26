@@ -246,7 +246,7 @@ export default class MockerService extends EventEmitter {
         getById: (state) => (id) => {
           return state.items.filter(item => item.id === id)[0]
         },
-        findInStore: (state) => (limit = 4, skip = 0) => {
+        findInStore: (state) => ({ limit = 4, skip = 0 }) => {
           return state.items.filter(item => item.id <= limit + skip && item.id > skip)
         }
       }

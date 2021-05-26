@@ -972,9 +972,9 @@ var MockerService = /*@__PURE__*/(function (EventEmitter) {
         getById: function (state) { return function (id) {
           return state.items.filter(function (item) { return item.id === id; })[0]
         }; },
-        findInStore: function (state) { return function (limit, skip) {
-          if ( limit === void 0 ) limit = 4;
-          if ( skip === void 0 ) skip = 0;
+        findInStore: function (state) { return function (ref) {
+          var limit = ref.limit; if ( limit === void 0 ) limit = 4;
+          var skip = ref.skip; if ( skip === void 0 ) skip = 0;
 
           return state.items.filter(function (item) { return item.id <= limit + skip && item.id > skip; })
         }; }
