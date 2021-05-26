@@ -7,16 +7,12 @@ import { uglify } from 'rollup-plugin-uglify'
 
 const external = [
   'faker',
-  'lodash.get',
-  '@hapi/hapi',
-  'axios'
+  '@hapi/hapi'
 ]
 
 const globals = {
   'faker': 'faker',
-  'lodash.get': 'get',
-  '@hapi/hapi': 'hapi',
-  'axios': 'axios'
+  '@hapi/hapi': 'hapi'
 }
 
 const plugins = [

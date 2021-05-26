@@ -1,6 +1,5 @@
 import fs from 'fs'
 import path from 'path'
-import axios from 'axios'
 import EventEmitter from 'events'
 import MockerService from '../service/service.js'
 /**
@@ -20,14 +19,12 @@ export default class MockerCore extends EventEmitter {
   constructor({ port = 3001, host = 'localhost', services = {}, servicesPath, debug = false }) {
     super()
     this.services = {}
+    this.faker = {}
     this._host = host
     this._port = port
     this._services = services
     this._servicesPath = servicesPath
     this.debug = debug
-    this.transport = axios.create({
-      baseURL: 'http://' + this._host + ':' + this._port + '/'
-    })
   }
   /**
    * Getter for the host option
@@ -80,7 +77,7 @@ export default class MockerCore extends EventEmitter {
    */
   registerService (serviceName, serviceConfig) {
     this.log(`Registering ${serviceName} service`)
-    const service = new MockerService(serviceName, serviceConfig, this)
+    const service = new MockerService(serviceName, serviceConfig, this, this.faker)
     this.services[serviceName] = service
     this.log(`${serviceName} registered`)
     this.log(this.servicesRegistered)

@@ -1,6 +1,239 @@
-import axios from 'axios';
-import faker from 'faker';
-import get from 'lodash.get';
+var fs = {};
+
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+// resolves . and .. elements in a path array with directory names there
+// must be no slashes, empty elements, or device names (c:\) in the array
+// (so also no leading and trailing slashes - it does not distinguish
+// relative and absolute paths)
+function normalizeArray(parts, allowAboveRoot) {
+  // if the path tries to go above the root, `up` ends up > 0
+  var up = 0;
+  for (var i = parts.length - 1; i >= 0; i--) {
+    var last = parts[i];
+    if (last === '.') {
+      parts.splice(i, 1);
+    } else if (last === '..') {
+      parts.splice(i, 1);
+      up++;
+    } else if (up) {
+      parts.splice(i, 1);
+      up--;
+    }
+  }
+
+  // if the path is allowed to go above the root, restore leading ..s
+  if (allowAboveRoot) {
+    for (; up--; up) {
+      parts.unshift('..');
+    }
+  }
+
+  return parts;
+}
+
+// Split a filename into [root, dir, basename, ext], unix version
+// 'root' is just a slash, or nothing.
+var splitPathRe =
+    /^(\/?|)([\s\S]*?)((?:\.{1,2}|[^\/]+?|)(\.[^.\/]*|))(?:[\/]*)$/;
+var splitPath = function(filename) {
+  return splitPathRe.exec(filename).slice(1);
+};
+
+// path.resolve([from ...], to)
+// posix version
+function resolve() {
+  var arguments$1 = arguments;
+
+  var resolvedPath = '',
+      resolvedAbsolute = false;
+
+  for (var i = arguments.length - 1; i >= -1 && !resolvedAbsolute; i--) {
+    var path = (i >= 0) ? arguments$1[i] : '/';
+
+    // Skip empty and invalid entries
+    if (typeof path !== 'string') {
+      throw new TypeError('Arguments to path.resolve must be strings');
+    } else if (!path) {
+      continue;
+    }
+
+    resolvedPath = path + '/' + resolvedPath;
+    resolvedAbsolute = path.charAt(0) === '/';
+  }
+
+  // At this point the path should be resolved to a full absolute path, but
+  // handle relative paths to be safe (might happen when process.cwd() fails)
+
+  // Normalize the path
+  resolvedPath = normalizeArray(filter(resolvedPath.split('/'), function(p) {
+    return !!p;
+  }), !resolvedAbsolute).join('/');
+
+  return ((resolvedAbsolute ? '/' : '') + resolvedPath) || '.';
+}
+// path.normalize(path)
+// posix version
+function normalize(path) {
+  var isPathAbsolute = isAbsolute(path),
+      trailingSlash = substr(path, -1) === '/';
+
+  // Normalize the path
+  path = normalizeArray(filter(path.split('/'), function(p) {
+    return !!p;
+  }), !isPathAbsolute).join('/');
+
+  if (!path && !isPathAbsolute) {
+    path = '.';
+  }
+  if (path && trailingSlash) {
+    path += '/';
+  }
+
+  return (isPathAbsolute ? '/' : '') + path;
+}
+// posix version
+function isAbsolute(path) {
+  return path.charAt(0) === '/';
+}
+
+// posix version
+function join() {
+  var paths = Array.prototype.slice.call(arguments, 0);
+  return normalize(filter(paths, function(p, index) {
+    if (typeof p !== 'string') {
+      throw new TypeError('Arguments to path.join must be strings');
+    }
+    return p;
+  }).join('/'));
+}
+
+
+// path.relative(from, to)
+// posix version
+function relative(from, to) {
+  from = resolve(from).substr(1);
+  to = resolve(to).substr(1);
+
+  function trim(arr) {
+    var start = 0;
+    for (; start < arr.length; start++) {
+      if (arr[start] !== '') { break; }
+    }
+
+    var end = arr.length - 1;
+    for (; end >= 0; end--) {
+      if (arr[end] !== '') { break; }
+    }
+
+    if (start > end) { return []; }
+    return arr.slice(start, end - start + 1);
+  }
+
+  var fromParts = trim(from.split('/'));
+  var toParts = trim(to.split('/'));
+
+  var length = Math.min(fromParts.length, toParts.length);
+  var samePartsLength = length;
+  for (var i = 0; i < length; i++) {
+    if (fromParts[i] !== toParts[i]) {
+      samePartsLength = i;
+      break;
+    }
+  }
+
+  var outputParts = [];
+  for (var i = samePartsLength; i < fromParts.length; i++) {
+    outputParts.push('..');
+  }
+
+  outputParts = outputParts.concat(toParts.slice(samePartsLength));
+
+  return outputParts.join('/');
+}
+
+var sep = '/';
+var delimiter = ':';
+
+function dirname(path) {
+  var result = splitPath(path),
+      root = result[0],
+      dir = result[1];
+
+  if (!root && !dir) {
+    // No dirname whatsoever
+    return '.';
+  }
+
+  if (dir) {
+    // It has a dirname, strip trailing slash
+    dir = dir.substr(0, dir.length - 1);
+  }
+
+  return root + dir;
+}
+
+function basename(path, ext) {
+  var f = splitPath(path)[2];
+  // TODO: make this comparison case-insensitive on windows?
+  if (ext && f.substr(-1 * ext.length) === ext) {
+    f = f.substr(0, f.length - ext.length);
+  }
+  return f;
+}
+
+
+function extname(path) {
+  return splitPath(path)[3];
+}
+var path = {
+  extname: extname,
+  basename: basename,
+  dirname: dirname,
+  sep: sep,
+  delimiter: delimiter,
+  relative: relative,
+  join: join,
+  isAbsolute: isAbsolute,
+  normalize: normalize,
+  resolve: resolve
+};
+function filter (xs, f) {
+    if (xs.filter) { return xs.filter(f); }
+    var res = [];
+    for (var i = 0; i < xs.length; i++) {
+        if (f(xs[i], i, xs)) { res.push(xs[i]); }
+    }
+    return res;
+}
+
+// String.prototype.substr - negative index don't work in IE8
+var substr = 'ab'.substr(-1) === 'b' ?
+    function (str, start, len) { return str.substr(start, len) } :
+    function (str, start, len) {
+        if (start < 0) { start = str.length + start; }
+        return str.substr(start, len);
+    }
+;
 
 var domain;
 
@@ -470,251 +703,17 @@ function unwrapListeners(arr) {
   return ret;
 }
 
-var fs = {};
-
-// Copyright Joyent, Inc. and other Node contributors.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a
-// copy of this software and associated documentation files (the
-// "Software"), to deal in the Software without restriction, including
-// without limitation the rights to use, copy, modify, merge, publish,
-// distribute, sublicense, and/or sell copies of the Software, and to permit
-// persons to whom the Software is furnished to do so, subject to the
-// following conditions:
-//
-// The above copyright notice and this permission notice shall be included
-// in all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
-// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
-// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
-// USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-// resolves . and .. elements in a path array with directory names there
-// must be no slashes, empty elements, or device names (c:\) in the array
-// (so also no leading and trailing slashes - it does not distinguish
-// relative and absolute paths)
-function normalizeArray(parts, allowAboveRoot) {
-  // if the path tries to go above the root, `up` ends up > 0
-  var up = 0;
-  for (var i = parts.length - 1; i >= 0; i--) {
-    var last = parts[i];
-    if (last === '.') {
-      parts.splice(i, 1);
-    } else if (last === '..') {
-      parts.splice(i, 1);
-      up++;
-    } else if (up) {
-      parts.splice(i, 1);
-      up--;
-    }
-  }
-
-  // if the path is allowed to go above the root, restore leading ..s
-  if (allowAboveRoot) {
-    for (; up--; up) {
-      parts.unshift('..');
-    }
-  }
-
-  return parts;
-}
-
-// Split a filename into [root, dir, basename, ext], unix version
-// 'root' is just a slash, or nothing.
-var splitPathRe =
-    /^(\/?|)([\s\S]*?)((?:\.{1,2}|[^\/]+?|)(\.[^.\/]*|))(?:[\/]*)$/;
-var splitPath = function(filename) {
-  return splitPathRe.exec(filename).slice(1);
-};
-
-// path.resolve([from ...], to)
-// posix version
-function resolve() {
-  var arguments$1 = arguments;
-
-  var resolvedPath = '',
-      resolvedAbsolute = false;
-
-  for (var i = arguments.length - 1; i >= -1 && !resolvedAbsolute; i--) {
-    var path = (i >= 0) ? arguments$1[i] : '/';
-
-    // Skip empty and invalid entries
-    if (typeof path !== 'string') {
-      throw new TypeError('Arguments to path.resolve must be strings');
-    } else if (!path) {
-      continue;
-    }
-
-    resolvedPath = path + '/' + resolvedPath;
-    resolvedAbsolute = path.charAt(0) === '/';
-  }
-
-  // At this point the path should be resolved to a full absolute path, but
-  // handle relative paths to be safe (might happen when process.cwd() fails)
-
-  // Normalize the path
-  resolvedPath = normalizeArray(filter(resolvedPath.split('/'), function(p) {
-    return !!p;
-  }), !resolvedAbsolute).join('/');
-
-  return ((resolvedAbsolute ? '/' : '') + resolvedPath) || '.';
-}
-// path.normalize(path)
-// posix version
-function normalize(path) {
-  var isPathAbsolute = isAbsolute(path),
-      trailingSlash = substr(path, -1) === '/';
-
-  // Normalize the path
-  path = normalizeArray(filter(path.split('/'), function(p) {
-    return !!p;
-  }), !isPathAbsolute).join('/');
-
-  if (!path && !isPathAbsolute) {
-    path = '.';
-  }
-  if (path && trailingSlash) {
-    path += '/';
-  }
-
-  return (isPathAbsolute ? '/' : '') + path;
-}
-// posix version
-function isAbsolute(path) {
-  return path.charAt(0) === '/';
-}
-
-// posix version
-function join() {
-  var paths = Array.prototype.slice.call(arguments, 0);
-  return normalize(filter(paths, function(p, index) {
-    if (typeof p !== 'string') {
-      throw new TypeError('Arguments to path.join must be strings');
-    }
-    return p;
-  }).join('/'));
-}
-
-
-// path.relative(from, to)
-// posix version
-function relative(from, to) {
-  from = resolve(from).substr(1);
-  to = resolve(to).substr(1);
-
-  function trim(arr) {
-    var start = 0;
-    for (; start < arr.length; start++) {
-      if (arr[start] !== '') { break; }
-    }
-
-    var end = arr.length - 1;
-    for (; end >= 0; end--) {
-      if (arr[end] !== '') { break; }
-    }
-
-    if (start > end) { return []; }
-    return arr.slice(start, end - start + 1);
-  }
-
-  var fromParts = trim(from.split('/'));
-  var toParts = trim(to.split('/'));
-
-  var length = Math.min(fromParts.length, toParts.length);
-  var samePartsLength = length;
-  for (var i = 0; i < length; i++) {
-    if (fromParts[i] !== toParts[i]) {
-      samePartsLength = i;
-      break;
-    }
-  }
-
-  var outputParts = [];
-  for (var i = samePartsLength; i < fromParts.length; i++) {
-    outputParts.push('..');
-  }
-
-  outputParts = outputParts.concat(toParts.slice(samePartsLength));
-
-  return outputParts.join('/');
-}
-
-var sep = '/';
-var delimiter = ':';
-
-function dirname(path) {
-  var result = splitPath(path),
-      root = result[0],
-      dir = result[1];
-
-  if (!root && !dir) {
-    // No dirname whatsoever
-    return '.';
-  }
-
-  if (dir) {
-    // It has a dirname, strip trailing slash
-    dir = dir.substr(0, dir.length - 1);
-  }
-
-  return root + dir;
-}
-
-function basename(path, ext) {
-  var f = splitPath(path)[2];
-  // TODO: make this comparison case-insensitive on windows?
-  if (ext && f.substr(-1 * ext.length) === ext) {
-    f = f.substr(0, f.length - ext.length);
-  }
-  return f;
-}
-
-
-function extname(path) {
-  return splitPath(path)[3];
-}
-var path = {
-  extname: extname,
-  basename: basename,
-  dirname: dirname,
-  sep: sep,
-  delimiter: delimiter,
-  relative: relative,
-  join: join,
-  isAbsolute: isAbsolute,
-  normalize: normalize,
-  resolve: resolve
-};
-function filter (xs, f) {
-    if (xs.filter) { return xs.filter(f); }
-    var res = [];
-    for (var i = 0; i < xs.length; i++) {
-        if (f(xs[i], i, xs)) { res.push(xs[i]); }
-    }
-    return res;
-}
-
-// String.prototype.substr - negative index don't work in IE8
-var substr = 'ab'.substr(-1) === 'b' ?
-    function (str, start, len) { return str.substr(start, len) } :
-    function (str, start, len) {
-        if (start < 0) { start = str.length + start; }
-        return str.substr(start, len);
-    }
-;
-
 /**
  * Class for the service
  * @extends EventEmitter
  */
 var MockerService = /*@__PURE__*/(function (EventEmitter) {
-  function MockerService(name, opts, app) {
+  function MockerService(name, opts, app, faker) {
+    if ( faker === void 0 ) faker = {};
+
     EventEmitter.call(this);
     this.app = app;
+    this.faker = faker; // Faker is passed from the app so don't need to bundle it in the client version
     this.name = name;
     this.configured = false;
     this.items = [];
@@ -750,7 +749,7 @@ var MockerService = /*@__PURE__*/(function (EventEmitter) {
    * Configure service
    */
   MockerService.prototype.configureService = function configureService (ref) {
-    var schema = ref.schema;
+    var schema = ref.schema; if ( schema === void 0 ) schema = {};
     var total = ref.total; if ( total === void 0 ) total = 10;
 
     this.schema = schema;
@@ -826,6 +825,9 @@ var MockerService = /*@__PURE__*/(function (EventEmitter) {
     var properties = ref.properties; if ( properties === void 0 ) properties = {};
     var fakerType = ref.fakerType; if ( fakerType === void 0 ) fakerType = 'lorem.text';
 
+    if (!this.faker) {
+      return
+    }
     if (typeof type === 'array') {
       var items = [];
       for (var i = 0; total > i; i++) {
@@ -833,9 +835,13 @@ var MockerService = /*@__PURE__*/(function (EventEmitter) {
           var obj = this.generateItem(properties, i + 1);
           items.push(obj);
         } else {
-          var fakerFunc = get(faker, fakerType)[0];
+          var props = fakerType.split('.');
+          if (props.length < 2) {
+            this.app.handleError('missing props');
+          }
+          var fakerFunc = this.faker[props[0]][props[1]];
           if (!fakerFunc) {
-            fakerFunc = get(faker, 'lorem.text');
+            fakerFunc = this.faker.lorem.text;
           }
           items.push(fakerFunc());
         }
@@ -844,9 +850,13 @@ var MockerService = /*@__PURE__*/(function (EventEmitter) {
     } else if (typeof type === 'object') {
       return this.generateItem(properties, 1)
     } else {
-      var fakerFunc$1 = get(faker, fakerType);
+      var props$1 = fakerType.split('.');
+      if (props$1.length < 2) {
+        this.app.handleError('missing props');
+      }
+      var fakerFunc$1 = this.faker[props$1[0]][props$1[1]];
       if (!fakerFunc$1) {
-        fakerFunc$1 = get(faker, 'lorem.text');
+        fakerFunc$1 = this.faker.lorem.text;
       }
       return fakerFunc$1()
     }
@@ -886,7 +896,7 @@ var MockerService = /*@__PURE__*/(function (EventEmitter) {
     var this$1 = this;
     if ( id === void 0 ) id = 1;
 
-    return this.app.transport && this.app.transport.get(((this.name) + "/" + id)).then(function (res) {
+    return this.app.transport.get(((this.name) + "/" + id)).then(function (res) {
       return res.data
     }).catch(function (err) {
       var errMessage = err.response.data.message;
@@ -899,11 +909,14 @@ var MockerService = /*@__PURE__*/(function (EventEmitter) {
    * @returns {Object} - Vuex Module
    */
   MockerService.prototype.createStore = function createStore () {
+    var self = this;
     return {
       namespaced: true,
-      static: {
+      state: {
         items: [],
-        total: 0
+        total: 0,
+        isFindPending: false,
+        isGetPending: false
       },
       mutations: {
         ADD_ITEM_TO_STORE: function ADD_ITEM_TO_STORE (state, item) {
@@ -914,6 +927,18 @@ var MockerService = /*@__PURE__*/(function (EventEmitter) {
         },
         UPDATE_TOTAL: function UPDATE_TOTAL (state, total) {
           state.total = total;
+        },
+        IS_FIND_PENDING: function IS_FIND_PENDING (state) {
+          state.isFindPending = true;
+        },
+        FIND_FINISHED: function FIND_FINISHED (state) {
+          state.isFindPending = false;
+        },
+        IS_GET_PENDING: function IS_GET_PENDING (state) {
+          state.isGetPending = true;
+        },
+        GET_FINISHED: function GET_FINISHED (state) {
+          state.isGetPending = false;
         }
       },
       actions: {
@@ -922,16 +947,22 @@ var MockerService = /*@__PURE__*/(function (EventEmitter) {
           var limit = ref$1.limit;
           var skip = ref$1.skip;
 
-          return this.find(limit, skip).then(function (res) {
+          commit('IS_FIND_PENDING');
+          return self.find({ limit: limit, skip: skip }).then(function (res) {
             commit('UPDATE_TOTAL', res.total);
             res.data.forEach(function (item) {
               commit('ADD_ITEM_TO_STORE', item);
             });
+          }).finally(function () {
+            commit('FIND_FINISHED');
           })
         },
         getItem: function getItem (id) {
-          return this.get(id).then(function (item) {
+          commit('IS_GET_PENDING');
+          return self.get(id).then(function (item) {
             commit('ADD_ITEM_TO_STORE', item);
+          }).finally(function () {
+            commit('GET_FINISHED');
           })
         }
       },
@@ -968,14 +999,12 @@ var MockerCore = /*@__PURE__*/(function (EventEmitter) {
 
     EventEmitter.call(this);
     this.services = {};
+    this.faker = {};
     this._host = host;
     this._port = port;
     this._services = services;
     this._servicesPath = servicesPath;
     this.debug = debug;
-    this.transport = axios.create({
-      baseURL: 'http://' + this._host + ':' + this._port + '/'
-    });
   }
 
   if ( EventEmitter ) MockerCore.__proto__ = EventEmitter;
@@ -1036,7 +1065,7 @@ var MockerCore = /*@__PURE__*/(function (EventEmitter) {
    */
   MockerCore.prototype.registerService = function registerService (serviceName, serviceConfig) {
     this.log(("Registering " + serviceName + " service"));
-    var service = new MockerService(serviceName, serviceConfig, this);
+    var service = new MockerService(serviceName, serviceConfig, this, this.faker);
     this.services[serviceName] = service;
     this.log((serviceName + " registered"));
     this.log(this.servicesRegistered);
@@ -1090,14 +1119,14 @@ var MockerCore = /*@__PURE__*/(function (EventEmitter) {
 
 /**
  * Class for the client app to request data from the server
- * @extends EventEmitter
+ * @extends MockerCore
  */
 var MockerClient = /*@__PURE__*/(function (MockerCore) {
-  function MockerClient() {
-    var args = [], len = arguments.length;
-    while ( len-- ) args[ len ] = arguments[ len ];
-
-    MockerCore.apply(this, args);
+  function MockerClient(args) {
+    MockerCore.call(this, args);
+    this.transport = args.transport.create({
+      baseURL: 'http://' + this._host + ':' + this._port + '/'
+    });
     this.registerServices();
   }
 

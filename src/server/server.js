@@ -1,4 +1,5 @@
 import hapi from '@hapi/hapi'
+import faker from 'faker'
 import EventEmitter from 'events'
 import MockerCore from '../core/core.js'
 /**
@@ -15,8 +16,12 @@ export default class MockerServer extends MockerCore {
    * @param {string} options.servicesPath - path to a folder containing a json file for each service, with configuration options.
    * @param {boolean} options.debug - debug mode.
    */
-  constructor(...args) {
-    super(...args)
+  constructor(args) {
+    super(args)
+    this.faker = faker
+    this.transport = {
+      get: url => this.transportGet(url)
+    }
     this.createServer()
     this.registerServices()
     this.seedServices()
@@ -38,6 +43,30 @@ export default class MockerServer extends MockerCore {
         cors: true
       }
     })
+  }
+  /**
+   * @method transportGet
+   * Mocks a url request
+   */
+  transportGet (url) {
+    if (!url) {
+      this.handleError('No path')
+    }
+    if (url.includes('?')) {
+      const service = url.split('?')[0]
+      const params = url.split('?')[1]
+      let limit = params.split('&').filter(arg => arg.includes('limit'))[0]
+      let skip = params.split('&').filter(arg => arg.includes('skip'))[0]
+      limit = parseInt(limit.split('=')[1])
+      skip = parseInt(skip.split('=')[1])
+      const data = this.service(service).items.filter(item => item.id <= limit + skip && item.id > skip)
+      const total = this.service(service).items.length
+      return Promise.resolve({ data, total })
+    } else {
+      const service = url.split('/')[0]
+      const params = url.split('/')[1]
+      return Promise.resolve(this.service(service).items.filter(item => item.id === parseInt(params))[0])
+    }
   }
   /**
    * @method seedServices

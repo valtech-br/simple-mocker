@@ -1,15 +1,13 @@
 (function (global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('@hapi/hapi'), require('axios'), require('faker'), require('lodash.get')) :
-  typeof define === 'function' && define.amd ? define(['exports', '@hapi/hapi', 'axios', 'faker', 'lodash.get'], factory) :
-  (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.MockerServer = {}, global.hapi, global.axios, global.faker, global.get));
-}(this, (function (exports, hapi, axios, faker, get) { 'use strict';
+  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('@hapi/hapi'), require('faker')) :
+  typeof define === 'function' && define.amd ? define(['exports', '@hapi/hapi', 'faker'], factory) :
+  (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.MockerServer = {}, global.hapi, global.faker));
+}(this, (function (exports, hapi, faker) { 'use strict';
 
   function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e : { 'default': e }; }
 
   var hapi__default = /*#__PURE__*/_interopDefaultLegacy(hapi);
-  var axios__default = /*#__PURE__*/_interopDefaultLegacy(axios);
   var faker__default = /*#__PURE__*/_interopDefaultLegacy(faker);
-  var get__default = /*#__PURE__*/_interopDefaultLegacy(get);
 
   var domain;
 
@@ -721,9 +719,12 @@
    * @extends EventEmitter
    */
   var MockerService = /*@__PURE__*/(function (EventEmitter) {
-    function MockerService(name, opts, app) {
+    function MockerService(name, opts, app, faker) {
+      if ( faker === void 0 ) faker = {};
+
       EventEmitter.call(this);
       this.app = app;
+      this.faker = faker; // Faker is passed from the app so don't need to bundle it in the client version
       this.name = name;
       this.configured = false;
       this.items = [];
@@ -759,7 +760,7 @@
      * Configure service
      */
     MockerService.prototype.configureService = function configureService (ref) {
-      var schema = ref.schema;
+      var schema = ref.schema; if ( schema === void 0 ) schema = {};
       var total = ref.total; if ( total === void 0 ) total = 10;
 
       this.schema = schema;
@@ -835,6 +836,9 @@
       var properties = ref.properties; if ( properties === void 0 ) properties = {};
       var fakerType = ref.fakerType; if ( fakerType === void 0 ) fakerType = 'lorem.text';
 
+      if (!this.faker) {
+        return
+      }
       if (typeof type === 'array') {
         var items = [];
         for (var i = 0; total > i; i++) {
@@ -842,9 +846,13 @@
             var obj = this.generateItem(properties, i + 1);
             items.push(obj);
           } else {
-            var fakerFunc = get__default['default'](faker__default['default'], fakerType)[0];
+            var props = fakerType.split('.');
+            if (props.length < 2) {
+              this.app.handleError('missing props');
+            }
+            var fakerFunc = this.faker[props[0]][props[1]];
             if (!fakerFunc) {
-              fakerFunc = get__default['default'](faker__default['default'], 'lorem.text');
+              fakerFunc = this.faker.lorem.text;
             }
             items.push(fakerFunc());
           }
@@ -853,9 +861,13 @@
       } else if (typeof type === 'object') {
         return this.generateItem(properties, 1)
       } else {
-        var fakerFunc$1 = get__default['default'](faker__default['default'], fakerType);
+        var props$1 = fakerType.split('.');
+        if (props$1.length < 2) {
+          this.app.handleError('missing props');
+        }
+        var fakerFunc$1 = this.faker[props$1[0]][props$1[1]];
         if (!fakerFunc$1) {
-          fakerFunc$1 = get__default['default'](faker__default['default'], 'lorem.text');
+          fakerFunc$1 = this.faker.lorem.text;
         }
         return fakerFunc$1()
       }
@@ -895,7 +907,7 @@
       var this$1 = this;
       if ( id === void 0 ) id = 1;
 
-      return this.app.transport && this.app.transport.get(((this.name) + "/" + id)).then(function (res) {
+      return this.app.transport.get(((this.name) + "/" + id)).then(function (res) {
         return res.data
       }).catch(function (err) {
         var errMessage = err.response.data.message;
@@ -908,11 +920,14 @@
      * @returns {Object} - Vuex Module
      */
     MockerService.prototype.createStore = function createStore () {
+      var self = this;
       return {
         namespaced: true,
-        static: {
+        state: {
           items: [],
-          total: 0
+          total: 0,
+          isFindPending: false,
+          isGetPending: false
         },
         mutations: {
           ADD_ITEM_TO_STORE: function ADD_ITEM_TO_STORE (state, item) {
@@ -923,6 +938,18 @@
           },
           UPDATE_TOTAL: function UPDATE_TOTAL (state, total) {
             state.total = total;
+          },
+          IS_FIND_PENDING: function IS_FIND_PENDING (state) {
+            state.isFindPending = true;
+          },
+          FIND_FINISHED: function FIND_FINISHED (state) {
+            state.isFindPending = false;
+          },
+          IS_GET_PENDING: function IS_GET_PENDING (state) {
+            state.isGetPending = true;
+          },
+          GET_FINISHED: function GET_FINISHED (state) {
+            state.isGetPending = false;
           }
         },
         actions: {
@@ -931,16 +958,22 @@
             var limit = ref$1.limit;
             var skip = ref$1.skip;
 
-            return this.find(limit, skip).then(function (res) {
+            commit('IS_FIND_PENDING');
+            return self.find({ limit: limit, skip: skip }).then(function (res) {
               commit('UPDATE_TOTAL', res.total);
               res.data.forEach(function (item) {
                 commit('ADD_ITEM_TO_STORE', item);
               });
+            }).finally(function () {
+              commit('FIND_FINISHED');
             })
           },
           getItem: function getItem (id) {
-            return this.get(id).then(function (item) {
+            commit('IS_GET_PENDING');
+            return self.get(id).then(function (item) {
               commit('ADD_ITEM_TO_STORE', item);
+            }).finally(function () {
+              commit('GET_FINISHED');
             })
           }
         },
@@ -977,14 +1010,12 @@
 
       EventEmitter.call(this);
       this.services = {};
+      this.faker = {};
       this._host = host;
       this._port = port;
       this._services = services;
       this._servicesPath = servicesPath;
       this.debug = debug;
-      this.transport = axios__default['default'].create({
-        baseURL: 'http://' + this._host + ':' + this._port + '/'
-      });
     }
 
     if ( EventEmitter ) MockerCore.__proto__ = EventEmitter;
@@ -1045,7 +1076,7 @@
      */
     MockerCore.prototype.registerService = function registerService (serviceName, serviceConfig) {
       this.log(("Registering " + serviceName + " service"));
-      var service = new MockerService(serviceName, serviceConfig, this);
+      var service = new MockerService(serviceName, serviceConfig, this, this.faker);
       this.services[serviceName] = service;
       this.log((serviceName + " registered"));
       this.log(this.servicesRegistered);
@@ -1102,11 +1133,14 @@
    * @extends EventEmitter
    */
   var MockerServer = /*@__PURE__*/(function (MockerCore) {
-    function MockerServer() {
-      var args = [], len = arguments.length;
-      while ( len-- ) args[ len ] = arguments[ len ];
+    function MockerServer(args) {
+      var this$1 = this;
 
-      MockerCore.apply(this, args);
+      MockerCore.call(this, args);
+      this.faker = faker__default['default'];
+      this.transport = {
+        get: function (url) { return this$1.transportGet(url); }
+      };
       this.createServer();
       this.registerServices();
       this.seedServices();
@@ -1134,6 +1168,30 @@
           cors: true
         }
       });
+    };
+    /**
+     * @method transportGet
+     * Mocks a url request
+     */
+    MockerServer.prototype.transportGet = function transportGet (url) {
+      if (!url) {
+        this.handleError('No path');
+      }
+      if (url.includes('?')) {
+        var service = url.split('?')[0];
+        var params = url.split('?')[1];
+        var limit = params.split('&').filter(function (arg) { return arg.includes('limit'); })[0];
+        var skip = params.split('&').filter(function (arg) { return arg.includes('skip'); })[0];
+        limit = parseInt(limit.split('=')[1]);
+        skip = parseInt(skip.split('=')[1]);
+        var data = this.service(service).items.filter(function (item) { return item.id <= limit + skip && item.id > skip; });
+        var total = this.service(service).items.length;
+        return Promise.resolve({ data: data, total: total })
+      } else {
+        var service$1 = url.split('/')[0];
+        var params$1 = url.split('/')[1];
+        return Promise.resolve(this.service(service$1).items.filter(function (item) { return item.id === parseInt(params$1); })[0])
+      }
     };
     /**
      * @method seedServices

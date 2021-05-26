@@ -1,8 +1,7 @@
-import EventEmitter from 'events'
 import MockerCore from '../core/core.js'
 /**
  * Class for the client app to request data from the server
- * @extends EventEmitter
+ * @extends MockerCore
  */
 export default class MockerClient extends MockerCore {
   /**
@@ -14,8 +13,11 @@ export default class MockerClient extends MockerCore {
    * @param {string} options.servicesPath - path to a folder containing a json file for each service, with configuration options.
    * @param {boolean} options.debug - debug mode.
    */
-  constructor(...args) {
-    super(...args)
+  constructor(args) {
+    super(args)
+    this.transport = args.transport.create({
+      baseURL: 'http://' + this._host + ':' + this._port + '/'
+    })
     this.registerServices()
   }
   /**
