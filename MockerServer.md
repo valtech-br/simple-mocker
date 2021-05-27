@@ -84,7 +84,7 @@ gulp.task('start:server', () => {
 
 **Example**
 
-```json
+```js
 // ./mocks/users.json
 {
   "schema": {
@@ -107,7 +107,7 @@ gulp.task('start:server', () => {
       "type": "object",
       "properties": {
         "city": { "fakerType": "address.city" },
-        "state": { "fakerType": "address.stateAbbr" },
+        "state": { "fakerType": "address.stateAbbr" }
       }
     },
     "friends": {
@@ -116,9 +116,9 @@ gulp.task('start:server', () => {
       "fakerType": "object",
       "properties": {
         "name": { "fakerType": "internet.userName" },
-        "email": { "fakerType": "internet.email" },
+        "email": { "fakerType": "internet.email" }
       }
-    },
+    }
   },
   "total": 40
 }

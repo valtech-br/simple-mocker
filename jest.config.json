@@ -1,0 +1,10 @@
+{
+  "testPathIgnorePatterns": [
+    "<rootDir>/node_modules/",
+    "<rootDir>/dist/",
+    "<rootDir>/src/"
+  ],
+  "transform": {
+    "^.+\\.js$": "babel-jest"
+  }
+}

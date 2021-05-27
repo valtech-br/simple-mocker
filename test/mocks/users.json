@@ -1,0 +1,36 @@
+{
+  "schema": {
+    "name": {
+      "fakerType": "internet.userName"
+    },
+    "email": {
+      "fakerType": "internet.email"
+    },
+    "age": {
+      "type": "number",
+      "fakerType": "datatype.number"
+    },
+    "phones": {
+      "type": "array",
+      "total": 5,
+      "fakerType": "phone.phoneNumber"
+    },
+    "address": {
+      "type": "object",
+      "properties": {
+        "city": { "fakerType": "address.city" },
+        "state": { "fakerType": "address.stateAbbr" }
+      }
+    },
+    "friends": {
+      "type": "array",
+      "total": 4,
+      "fakerType": "object",
+      "properties": {
+        "name": { "fakerType": "internet.userName" },
+        "email": { "fakerType": "internet.email" }
+      }
+    }
+  },
+  "total": 40
+}
