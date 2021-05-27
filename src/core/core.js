@@ -106,7 +106,7 @@ export default class MockerCore extends EventEmitter {
     } else {
       const service = url.split('/')[0]
       const params = url.split('/')[1]
-      return Promise.resolve(this.service(service).items.filter(item => item.id === parseInt(params))[0])
+      return Promise.resolve({ data: this.service(service).items.filter(item => item.id === parseInt(params))[0] })
     }
   }
   /**

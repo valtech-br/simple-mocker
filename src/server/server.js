@@ -24,11 +24,6 @@ export default class MockerServer extends MockerCore {
     this.seedServices()
   }
   /**
-   * Getter for the hapi server
-   * @type {Object} Hapi server
-   */
-  get server () { return this._server }
-  /**
    * @method createServer
    * Instantiate hapi server
    */
@@ -49,6 +44,13 @@ export default class MockerServer extends MockerCore {
     return this._server.start()
   }
   /**
+   * @method stop
+   * Stop the app
+   */
+  stop () {
+    return this._server.stop()
+  }
+  /**
    * @method restart
    * Restarts the app
    */
@@ -67,6 +69,6 @@ export default class MockerServer extends MockerCore {
       service.destroy()
     })
     this.services = {}
-    this.server.stop()
+    this._server.stop()
   }
 }

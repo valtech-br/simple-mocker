@@ -115,7 +115,7 @@ export default class MockerService extends EventEmitter {
     if (!this.faker) {
       return
     }
-    if (typeof type === 'array') {
+    if (type === 'array') {
       const items = []
       for (let i = 0; total > i; i++) {
         if (fakerType === 'object') {
@@ -124,7 +124,7 @@ export default class MockerService extends EventEmitter {
         } else {
           const props = fakerType.split('.')
           if (props.length < 2) {
-            this.app.handleError('missing props')
+            this.app.handleError(`missing props: ${props} ${Object.keys(properties).join(', ')} ${type}`)
           }
           let fakerFunc = this.faker[props[0]][props[1]]
           if (!fakerFunc) {
@@ -132,14 +132,14 @@ export default class MockerService extends EventEmitter {
           }
           items.push(fakerFunc())
         }
-        return items
       }
-    } else if (typeof type === 'object') {
+      return items
+    } else if (type === 'object') {
       return this.generateItem(properties, 1)
     } else {
       const props = fakerType.split('.')
       if (props.length < 2) {
-        this.app.handleError('missing props')
+        this.app.handleError(`missing props: ${props} ${Object.keys(properties).join(', ')} ${type}`)
       }
       let fakerFunc = this.faker[props[0]][props[1]]
       if (!fakerFunc) {
