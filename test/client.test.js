@@ -1,7 +1,12 @@
 import fs from 'fs'
-import axios from 'axios'
-import { MockerServer } from '../src/server'
+import Vuex from 'vuex'
+import { createLocalVue, shallowMount } from '@vue/test-utils'
+import { MockerTest } from '../src/test'
 import { MockerClient } from '../src/client'
+
+const localVue = createLocalVue()
+
+localVue.use(Vuex)
 
 describe('Server with service options', () => {
 
@@ -14,7 +19,7 @@ describe('Server with service options', () => {
 
   const total = 5
 
-  const mocker = new MockerServer({
+  const mocker = new MockerTest({
     services: {
       [serviceName]: {
         schema: serviceSchema,
@@ -23,28 +28,20 @@ describe('Server with service options', () => {
     }
   })
 
+  const transport = {
+    create: () => {
+      return mocker.transport
+    }
+  }
+
   const client = new MockerClient({
     services: {
       [serviceName]: {}
     },
-    transport: axios,
-    debug: true
+    transport
   })
 
   const testService = client.service(serviceName)
-
-  beforeEach(() => {
-    return mocker.start()
-  })
-
-  afterEach(() => {
-    return mocker.stop()
-  })
-
-  afterAll((done) => {
-    mocker.destroy()
-    done()
-  })
 
   it('Should register services', () => {
     expect(testService.name).toBe(serviceName)
@@ -97,17 +94,67 @@ describe('Server with service options', () => {
 
   })
 
+  describe('Vuex store', () => {
+
+    const modules = client.createVuexModules()
+
+    const store = new Vuex.Store({
+      modules
+    })
+
+    it('Should update state on find action', () => {
+      store.dispatch(`${serviceName}/findItems`, { limit: 2, skip: 2 }).then(() => {
+        expect(store.state[serviceName].items.length).toBe(2)
+      })
+    })
+
+    it('Should return items from findItems action', () => {
+      store.dispatch(`${serviceName}/findItems`, { limit: 2, skip: 2 }).then((res) => {
+        expect(typeof res).toBe('object')
+        expect(res.data.length).toBe(2)
+        expect(res.total).toBe(total)
+      })
+    })
+
+    it('Should update state on get action', () => {
+      store.dispatch(`${serviceName}/getItem`, 2).then(() => {
+        const itemById = store.state[serviceName].items.filter(item => item.id === 2)
+        expect(itemById).toBeTruthy()
+      })
+    })
+
+    it('Should return item from getItem action', () => {
+      store.dispatch(`${serviceName}/getItem`, 2).then((res) => {
+        expect(res.id).toBe(2)
+      })
+    })
+
+    it('Should return getters', () => {
+      const items = store.getters[`${serviceName}/findInStore`]({ limit: 2, skip: 2 })
+      const item = store.getters[`${serviceName}/getById`](2)
+      expect(items.length).toBe(2)
+      expect(item.id).toBe(2)
+    })
+
+  })
+
 })
 
 describe('Server with servicePath option', () => {
 
-  const mocker = new MockerServer({
+  const mocker = new MockerTest({
     servicesPath: './test/mocks'
   })
 
+  const transport = {
+    create: () => {
+      return mocker.transport
+    }
+  }
+
   const client = new MockerClient({
     servicesPath: './test/mocks',
-    transport: axios
+    transport
   })
 
   const services = {}
@@ -117,19 +164,6 @@ describe('Server with servicePath option', () => {
     let json = fs.readFileSync(`./test/mocks/${file}`, { encoding:'utf8' })
     json = JSON.parse(json)
     services[serviceName] = json
-  })
-
-  beforeEach(() => {
-    return mocker.start()
-  })
-
-  afterEach(() => {
-    return mocker.stop()
-  })
-
-  afterAll((done) => {
-    mocker.destroy()
-    done()
   })
 
   it('Should register services', () => {

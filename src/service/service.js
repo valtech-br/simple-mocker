@@ -59,7 +59,7 @@ export default class MockerService extends EventEmitter {
       method: 'GET',
       path: `/${this.name}/{id}`,
       handler: (request) => {
-        return this.items[request.params.id - 1]
+        return this.items.filter(item => item.id === parseInt(request.params.id))[0]
       }
     },{
       method: 'GET',
@@ -163,7 +163,7 @@ export default class MockerService extends EventEmitter {
    */
   find ({ limit = 4, skip = 0 }) {
     return this.app.transport.get(`${this.name}?limit=${limit}&skip=${skip}`).then(res => {
-      return { data: res.data, total: this.total }
+      return { data: res.data, total: res.total }
     }).catch(err => {
       const errMessage = err.response.data.message
       this.emit('error', errMessage)
@@ -229,16 +229,20 @@ export default class MockerService extends EventEmitter {
             res.data.forEach(item => {
               commit('ADD_ITEM_TO_STORE', item)
             })
-          }).finally(() => {
+            return res
+          }).finally((res) => {
             commit('FIND_FINISHED')
+            return res
           })
         },
-        getItem (id) {
+        getItem ({ commit }, id) {
           commit('IS_GET_PENDING')
           return self.get(id).then(item => {
             commit('ADD_ITEM_TO_STORE', item)
-          }).finally(() => {
+            return item
+          }).finally((res) => {
             commit('GET_FINISHED')
+            return res
           })
         }
       },

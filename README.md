@@ -108,4 +108,4 @@ yarn start
 ```
 
 ## Todo's
-- [ ] Create tests
+- [x] Create tests

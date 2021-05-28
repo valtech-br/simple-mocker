@@ -778,7 +778,7 @@
         method: 'GET',
         path: ("/" + (this.name) + "/{id}"),
         handler: function (request) {
-          return this$1.items[request.params.id - 1]
+          return this$1.items.filter(function (item) { return item.id === parseInt(request.params.id); })[0]
         }
       },{
         method: 'GET',
@@ -839,7 +839,7 @@
       if (!this.faker) {
         return
       }
-      if (typeof type === 'array') {
+      if (type === 'array') {
         var items = [];
         for (var i = 0; total > i; i++) {
           if (fakerType === 'object') {
@@ -848,7 +848,7 @@
           } else {
             var props = fakerType.split('.');
             if (props.length < 2) {
-              this.app.handleError('missing props');
+              this.app.handleError(("missing props: " + props + " " + (Object.keys(properties).join(', ')) + " " + type));
             }
             var fakerFunc = this.faker[props[0]][props[1]];
             if (!fakerFunc) {
@@ -856,14 +856,14 @@
             }
             items.push(fakerFunc());
           }
-          return items
         }
-      } else if (typeof type === 'object') {
+        return items
+      } else if (type === 'object') {
         return this.generateItem(properties, 1)
       } else {
         var props$1 = fakerType.split('.');
         if (props$1.length < 2) {
-          this.app.handleError('missing props');
+          this.app.handleError(("missing props: " + props$1 + " " + (Object.keys(properties).join(', ')) + " " + type));
         }
         var fakerFunc$1 = this.faker[props$1[0]][props$1[1]];
         if (!fakerFunc$1) {
@@ -891,7 +891,7 @@
       var skip = ref.skip; if ( skip === void 0 ) skip = 0;
 
       return this.app.transport.get(((this.name) + "?limit=" + limit + "&skip=" + skip)).then(function (res) {
-        return { data: res.data, total: this$1.total }
+        return { data: res.data, total: res.total }
       }).catch(function (err) {
         var errMessage = err.response.data.message;
         this$1.emit('error', errMessage);
@@ -964,16 +964,22 @@
               res.data.forEach(function (item) {
                 commit('ADD_ITEM_TO_STORE', item);
               });
-            }).finally(function () {
+              return res
+            }).finally(function (res) {
               commit('FIND_FINISHED');
+              return res
             })
           },
-          getItem: function getItem (id) {
+          getItem: function getItem (ref, id) {
+            var commit = ref.commit;
+
             commit('IS_GET_PENDING');
             return self.get(id).then(function (item) {
               commit('ADD_ITEM_TO_STORE', item);
-            }).finally(function () {
+              return item
+            }).finally(function (res) {
               commit('GET_FINISHED');
+              return res
             })
           }
         },
@@ -1106,7 +1112,7 @@
       } else {
         var service$1 = url.split('/')[0];
         var params$1 = url.split('/')[1];
-        return Promise.resolve(this.service(service$1).items.filter(function (item) { return item.id === parseInt(params$1); })[0])
+        return Promise.resolve({ data: this.service(service$1).items.filter(function (item) { return item.id === parseInt(params$1); })[0] })
       }
     };
     /**
@@ -1181,13 +1187,6 @@
     if ( MockerCore ) MockerServer.__proto__ = MockerCore;
     MockerServer.prototype = Object.create( MockerCore && MockerCore.prototype );
     MockerServer.prototype.constructor = MockerServer;
-
-    var prototypeAccessors = { server: { configurable: true } };
-    /**
-     * Getter for the hapi server
-     * @type {Object} Hapi server
-     */
-    prototypeAccessors.server.get = function () { return this._server };
     /**
      * @method createServer
      * Instantiate hapi server
@@ -1209,6 +1208,13 @@
       return this._server.start()
     };
     /**
+     * @method stop
+     * Stop the app
+     */
+    MockerServer.prototype.stop = function stop () {
+      return this._server.stop()
+    };
+    /**
      * @method restart
      * Restarts the app
      */
@@ -1227,10 +1233,8 @@
         service.destroy();
       });
       this.services = {};
-      this.server.stop();
+      this._server.stop();
     };
-
-    Object.defineProperties( MockerServer.prototype, prototypeAccessors );
 
     return MockerServer;
   }(MockerCore));
