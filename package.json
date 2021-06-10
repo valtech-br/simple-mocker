@@ -1,6 +1,6 @@
 {
   "name": "@valtech-br/simple-mocker",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Moker server for front-end develpment",
   "main": "./dist/client/index.esm.js",
   "exports": {
