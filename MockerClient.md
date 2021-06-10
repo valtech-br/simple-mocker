@@ -11,8 +11,8 @@ Configure the store
 import Vue from 'vue'
 import Vuex, { Store } from 'vuex'
 import axios from 'axios'
-import { MockerClient } from '@br-fe/mocker/client'
-import { MockerClient } from '@br-fe/mocker' // for webpack 4.0
+import { MockerClient } from '@valtech-br/simple-mocker/client'
+import { MockerClient } from '@valtech-br/simple-mocker' // for webpack 4.0
 
 // Configure the client
 const mocker = new MockerClient({

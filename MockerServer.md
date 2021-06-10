@@ -8,7 +8,7 @@ Create a `mocker.js` file in the root of the boilerplate.
 
 ```js
 // ./mocker.js
-const { MockerServer } = require('@br-fe/mocker/server')
+const { MockerServer } = require('@valtech-br/simple-mocker/server')
 
 const mocker = new MockerServer({
   services: {

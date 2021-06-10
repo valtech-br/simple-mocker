@@ -1,4 +1,4 @@
-# @br-fe/mocker
+# @valtech-br/simple-mocker
 
 Mock server to get a unified solution to mocking data on fractal and vue.
 
@@ -8,11 +8,11 @@ Mock server to get a unified solution to mocking data on fractal and vue.
 Install the module as a dependency in your project
 
 ```bash
-npm install git+ssh://git@gitlab-cc.valtech.com:fedbr/mocker#master
+npm install @valtech-br/simple-mocker
 
 # or
 
-yarn add git+ssh://git@gitlab-cc.valtech.com:fedbr/mocker#master
+yarn add @valtech-br/simple-mocker
 ```
 
 ### Basic structure
@@ -32,7 +32,7 @@ All the basic logic of seeding and requesting is done inside the MockerService a
 
 ```js
 // ./mocker.js
-const { MockerServer } = require('@br-fe/mocker/server')
+const { MockerServer } = require('@valtech-br/simple-mocker/server')
 
 const mocker = new MockerServer({
   services: {
