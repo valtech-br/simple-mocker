@@ -1,5 +1,6 @@
 import fs from 'fs'
 import EventEmitter from 'events'
+
 /**
  * Class for the service
  * @extends EventEmitter
@@ -48,7 +49,7 @@ export default class MockerService extends EventEmitter {
   configureService ({ schema = {}, total = 10 }) {
     this.schema = schema
     this._total = total
-    this.app.server && this.registerRoutes()
+    this.app._server && this.registerRoutes()
   }
   /**
    * @method registerRoutes
@@ -59,21 +60,62 @@ export default class MockerService extends EventEmitter {
       method: 'GET',
       path: `/${this.name}/{id}`,
       handler: (request) => {
-        return this.items.filter(item => item.id === parseInt(request.params.id))[0]
+        const item = this.items.filter(it => it.id === parseInt(request.params.id))[0]
+        if (!item) {
+          this.app.handleError('notFound', 'Item not found')
+        } else {
+          return item
+        }
+      }
+    },{
+      method: ['POST', 'PUT'],
+      path: `/${this.name}/{id}`,
+      handler: (request) => {
+        const payload = request.payload
+        const item = this.items.filter(it => it.id === parseInt(request.params.id))[0]
+        if (!item) {
+          this.app.handleError('notFound', 'Item not found')
+        } else {
+          Object.keys(this.schema).forEach((key) => {
+            if (payload[key] || payload[key] === null) {
+              item[key] = payload[key]
+            }
+          })
+          return item
+        }
+      }
+    },{
+      method: 'DELETE',
+      path: `/${this.name}/{id}`,
+      handler: (request) => {
+        const item = this.items.filter(it => it.id === parseInt(request.params.id))[0]
+        if (!item) {
+          this.app.handleError('notFound', 'Item not found')
+        } else {
+          this.items = this.item.filter(it => it.id !== item.id)
+          return item
+        }
       }
     },{
       method: 'GET',
       path:  `/${this.name}`,
       handler: (request) => {
-        const itemsToReturn = this.items.filter(item => {
+        return this.items.filter((item) => {
           const limit = parseInt(request.query.limit) || 4
           const skip = parseInt(request.query.skip) || 0
           return item.id <= limit + skip && item.id > skip
         })
-        return itemsToReturn
+      }
+    },{
+      method: ['POST', 'PUT'],
+      path:  `/${this.name}`,
+      handler: (request) => {
+        const item = this.generateItem(null, request.payload)
+        this.items.push(item)
+        return item
       }
     }]
-    this.app.server.route(baseRoutes)
+    this.app._server.route(baseRoutes)
   }
   /**
    * @method generateCachedItems
@@ -93,13 +135,17 @@ export default class MockerService extends EventEmitter {
    * @param {Object} schema - Base schema for item generation. defaults to `this.schema`
    * @param {number} id - Id of the item to be generated. defaults to `this.items.length + 1`
    */
-  generateItem (schema, id) {
+  generateItem (schema, sample = {}) {
     const sch = schema || this.schema
     const keys = Object.keys(sch)
-    const obj = { id: id || this.items.length + 1 }
+    const obj = { id: sample.id || this.items.length + 1 }
     for (let i = 0; keys.length > i; i++) {
       const key = keys[i]
-      obj[key] = this.generateProperty(sch[key])
+      if (sample[key]) {
+        obj[key] = sample[key]
+      } else {
+        obj[key] = this.generateProperty(sch[key])
+      }
     }
     return obj
   }
@@ -116,24 +162,7 @@ export default class MockerService extends EventEmitter {
       return
     }
     if (type === 'array') {
-      const items = []
-      for (let i = 0; total > i; i++) {
-        if (fakerType === 'object') {
-          const obj = this.generateItem(properties, i + 1)
-          items.push(obj)
-        } else {
-          const props = fakerType.split('.')
-          if (props.length < 2) {
-            this.app.handleError(`missing props: ${props} ${Object.keys(properties).join(', ')} ${type}`)
-          }
-          let fakerFunc = this.faker[props[0]][props[1]]
-          if (!fakerFunc) {
-            fakerFunc = this.faker.lorem.text
-          }
-          items.push(fakerFunc())
-        }
-      }
-      return items
+      return this.generatePropertyArray({ type, total, properties, fakerType })
     } else if (type === 'object') {
       return this.generateItem(properties, 1)
     } else {
@@ -149,11 +178,85 @@ export default class MockerService extends EventEmitter {
     }
   }
   /**
+   * @method generatePropertyArray
+   * Generate a array property.
+   * @param {string} type - Type of the property. defaults to `string`.
+   * @param {number} total - If type is `array` sets the total number of items to be created in the array.
+   * @param {number} properties - If type is `object` or `array` and fakerType is set to `object` provides the schema of the object to be generated.
+   * @param {string} fakerType - Type of faker to be used. Check the possible [API methods](http://marak.github.io/faker.js/#toc7__anchor)
+   */
+  generatePropertyArray ({ type = 'string', total = 4, properties = {}, fakerType = 'lorem.text'}) {
+    if (!this.faker) {
+      return
+    }
+    const items = []
+    for (let i = 0; total > i; i++) {
+      if (fakerType === 'object') {
+        const obj = this.generateItem(properties, i + 1)
+        items.push(obj)
+      } else {
+        const props = fakerType.split('.')
+        if (props.length < 2) {
+          this.app.handleError(`missing props: ${props} ${Object.keys(properties).join(', ')} ${type}`)
+        }
+        let fakerFunc = this.faker[props[0]][props[1]]
+        if (!fakerFunc) {
+          fakerFunc = this.faker.lorem.text
+        }
+        items.push(fakerFunc())
+      }
+    }
+    return items
+  }
+  /**
    * @method destroy
    * Destroys the service
    */
    destroy () {
     this.removeAllListeners()
+  }
+  /**
+   * @method create
+   * Create a new item in the generated cache
+   * @param {object} item - Properties of the item to be created
+   * @returns {object} - Item created
+   */
+  create (item) {
+    return this.app.transport.post(`${this.name}`, item).then(res => {
+      return res
+    }).catch(err => {
+      const errMessage = err.response.data.message
+      this.emit('error', errMessage)
+    })
+  }
+  /**
+   * @method patch
+   * Patch existing item in the generated cache
+   * @param {number|string} id - Id of the item to be updated
+   * @param {object} item - Properties of the item to be updated
+   * @returns {object} - Item patch
+   */
+  patch (id, item) {
+    return this.app.transport.post(`${this.name}/${id}`, item).then(res => {
+      return res
+    }).catch(err => {
+      const errMessage = err.response.data.message
+      this.emit('error', errMessage)
+    })
+  }
+  /**
+   * @method delete
+   * Delete existing item in the generated cache
+   * @param {number|string} id - Id of the item to be deleted
+   * @returns {object} - Item deleted
+   */
+  delete (id) {
+    return this.app.transport.delete(`${this.name}/${id}`).then(res => {
+      return res
+    }).catch(err => {
+      const errMessage = err.response.data.message
+      this.emit('error', errMessage)
+    })
   }
   /**
    * @method find
@@ -196,17 +299,44 @@ export default class MockerService extends EventEmitter {
         items: [],
         total: 0,
         isFindPending: false,
-        isGetPending: false
+        isGetPending: false,
+        isCreatePending: false,
+        isPatchPending: false,
+        isDeletePending: false
       },
       mutations: {
         ADD_ITEM_TO_STORE (state, item) {
-          const exists = !!state.items.filter(i => i.id === item.id)[0]
+          const exists = !!state.items
+            .map((it, i) => {
+              return Object.assign({}, it, { index: i })
+            })
+            .filter(i => i.id === item.id)[0]
           if (!exists) {
             state.items.push(item)
+          } else {
+            state.items = state.items.splice(exists.index, 1, item)
           }
         },
         UPDATE_TOTAL (state, total) {
           state.total = total
+        },
+        IS_CREATE_PENDING (state) {
+          state.isCreatePending = true
+        },
+        CREATE_FINISHED (state) {
+          state.isCreatePending = false
+        },
+        IS_PATCH_PENDING (state) {
+          state.isPatchPending = true
+        },
+        PATCH_FINISHED (state) {
+          state.isPatchPending = false
+        },
+        IS_DELETE_PENDING (state) {
+          state.isDeletePending = true
+        },
+        DELETE_FINISHED (state) {
+          state.isDeletePending = false
         },
         IS_FIND_PENDING (state) {
           state.isFindPending = true
@@ -242,6 +372,36 @@ export default class MockerService extends EventEmitter {
             return item
           }).finally((res) => {
             commit('GET_FINISHED')
+            return res
+          })
+        },
+        createItem({ commit }, params) {
+          commit('IS_CREATE_PENDING')
+          return self.create(params).then(item => {
+            commit('ADD_ITEM_TO_STORE', item)
+            return item
+          }).finally((res) => {
+            commit('CREATE_FINISHED')
+            return res
+          })
+        },
+        patchItem({ commit }, { id, params }) {
+          commit('IS_PATCH_PENDING')
+          return self.patch(id, params).then(item => {
+            commit('ADD_ITEM_TO_STORE', item)
+            return item
+          }).finally((res) => {
+            commit('PATCH_FINISHED')
+            return res
+          })
+        },
+        deleteItem({ commit }, id) {
+          commit('IS_PATCH_PENDING')
+          return self.delete(id).then(item => {
+            commit('ADD_ITEM_TO_STORE', item)
+            return item
+          }).finally((res) => {
+            commit('PATCH_FINISHED')
             return res
           })
         }
