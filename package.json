@@ -16,7 +16,7 @@
     "dist"
   ],
   "author": "Valtech Front-End BR Team",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "scripts": {
     "start": "rollup --config rollup.config.js --watch",
     "test": "NODE_OPTIONS='--unhandled-rejections=warn --trace-warnings' jest --config jest.config.json --detectOpenHandles --no-cache --pass-with-no-tests"
