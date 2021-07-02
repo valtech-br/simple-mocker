@@ -15,11 +15,28 @@ const mocker = new MockerServer({
     users: {
       schema: {
         name: { fakerType: 'internet.userName' },
-        email: { fakerType: 'internet.email' }
+        email: { fakerType: 'internet.email' },
+        password: { fakerType: 'internet.password' }
       },
       total: 40
     }
   },
+  customRoutes: [{
+    method: 'POST',
+    path: '/login',
+    handler: (request, app) => {
+      if (!request.payload.email) {
+        app.handleError('badRequest', 'Email is missing')
+      } else if (!request.payload.password) {
+        app.handleError('badRequest', 'Password is missing')
+      }
+      const user = app.service('users').items.filter((it) => it.email === request.payload.email)[0]
+      if (!user || user.password !== request.payload.password) {
+        app.handleError('badRequest', "Email/Password don't match")
+      }
+      return user
+    }
+  }],
   debug: true
 })
 
@@ -62,6 +79,7 @@ gulp.task('start:server', () => {
 | port | `string` `number` | port where the server will be listening | `3001`
 | services | `object` | object where the `key` is the name of the service and the `value` is the [service options](#service-options) | `{}`
 | servicePath | `string` | location of a folder with the services options as json files beeing the name o the file the name de service | `undefined`
+| customRoutes | `array` | custom routes for hapi server, each route is configured just like hapi configure it's routes but the `handler` function receives the `app` instance as a secound parameter | `undefined`
 | debug | `boolean` | manage debug mode | `false`
 
 

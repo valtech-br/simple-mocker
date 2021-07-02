@@ -7,12 +7,14 @@ import { uglify } from 'rollup-plugin-uglify'
 
 const external = [
   'faker',
-  '@hapi/hapi'
+  '@hapi/hapi',
+  '@hapi/boom'
 ]
 
 const globals = {
   'faker': 'faker',
-  '@hapi/hapi': 'hapi'
+  '@hapi/hapi': 'hapi',
+  '@hapi/boom': 'Boom'
 }
 
 const plugins = [
@@ -22,7 +24,7 @@ const plugins = [
     preferBuiltins: false
   }),
   commonjs(),
-  buble({ transforms: { asyncAwait: false } }), // Transpila para ES5
+  buble({ transforms: { asyncAwait: false, forOf: false } }), // Transpila para ES5
 ]
 
 export default [{

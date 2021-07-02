@@ -1,8 +1,12 @@
 (function (global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
-  typeof define === 'function' && define.amd ? define(['exports'], factory) :
-  (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.MockerApp = {}));
-}(this, (function (exports) { 'use strict';
+  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('@hapi/boom')) :
+  typeof define === 'function' && define.amd ? define(['exports', '@hapi/boom'], factory) :
+  (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.MockerApp = {}, global.Boom));
+}(this, (function (exports, Boom) { 'use strict';
+
+  function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e : { 'default': e }; }
+
+  var Boom__default = /*#__PURE__*/_interopDefaultLegacy(Boom);
 
   var fs = {};
 
@@ -760,7 +764,7 @@
 
       this.schema = schema;
       this._total = total;
-      this.app.server && this.registerRoutes();
+      this.app._server && this.registerRoutes();
     };
     /**
      * @method registerRoutes
@@ -773,21 +777,62 @@
         method: 'GET',
         path: ("/" + (this.name) + "/{id}"),
         handler: function (request) {
-          return this$1.items.filter(function (item) { return item.id === parseInt(request.params.id); })[0]
+          var item = this$1.items.filter(function (it) { return it.id === parseInt(request.params.id); })[0];
+          if (!item) {
+            this$1.app.handleError('notFound', 'Item not found');
+          } else {
+            return item
+          }
+        }
+      },{
+        method: ['POST', 'PUT'],
+        path: ("/" + (this.name) + "/{id}"),
+        handler: function (request) {
+          var payload = request.payload;
+          var item = this$1.items.filter(function (it) { return it.id === parseInt(request.params.id); })[0];
+          if (!item) {
+            this$1.app.handleError('notFound', 'Item not found');
+          } else {
+            Object.keys(this$1.schema).forEach(function (key) {
+              if (payload[key] || payload[key] === null) {
+                item[key] = payload[key];
+              }
+            });
+            return item
+          }
+        }
+      },{
+        method: 'DELETE',
+        path: ("/" + (this.name) + "/{id}"),
+        handler: function (request) {
+          var item = this$1.items.filter(function (it) { return it.id === parseInt(request.params.id); })[0];
+          if (!item) {
+            this$1.app.handleError('notFound', 'Item not found');
+          } else {
+            this$1.items = this$1.item.filter(function (it) { return it.id !== item.id; });
+            return item
+          }
         }
       },{
         method: 'GET',
         path:  ("/" + (this.name)),
         handler: function (request) {
-          var itemsToReturn = this$1.items.filter(function (item) {
+          return this$1.items.filter(function (item) {
             var limit = parseInt(request.query.limit) || 4;
             var skip = parseInt(request.query.skip) || 0;
             return item.id <= limit + skip && item.id > skip
-          });
-          return itemsToReturn
+          })
+        }
+      },{
+        method: ['POST', 'PUT'],
+        path:  ("/" + (this.name)),
+        handler: function (request) {
+          var item = this$1.generateItem(null, request.payload);
+          this$1.items.push(item);
+          return item
         }
       }];
-      this.app.server.route(baseRoutes);
+      this.app._server.route(baseRoutes);
     };
     /**
      * @method generateCachedItems
@@ -807,13 +852,19 @@
      * @param {Object} schema - Base schema for item generation. defaults to `this.schema`
      * @param {number} id - Id of the item to be generated. defaults to `this.items.length + 1`
      */
-    MockerService.prototype.generateItem = function generateItem (schema, id) {
+    MockerService.prototype.generateItem = function generateItem (schema, sample) {
+      if ( sample === void 0 ) sample = {};
+
       var sch = schema || this.schema;
       var keys = Object.keys(sch);
-      var obj = { id: id || this.items.length + 1 };
+      var obj = { id: sample.id || this.items.length + 1 };
       for (var i = 0; keys.length > i; i++) {
         var key = keys[i];
-        obj[key] = this.generateProperty(sch[key]);
+        if (sample[key]) {
+          obj[key] = sample[key];
+        } else {
+          obj[key] = this.generateProperty(sch[key]);
+        }
       }
       return obj
     };
@@ -835,37 +886,56 @@
         return
       }
       if (type === 'array') {
-        var items = [];
-        for (var i = 0; total > i; i++) {
-          if (fakerType === 'object') {
-            var obj = this.generateItem(properties, i + 1);
-            items.push(obj);
-          } else {
-            var props = fakerType.split('.');
-            if (props.length < 2) {
-              this.app.handleError(("missing props: " + props + " " + (Object.keys(properties).join(', ')) + " " + type));
-            }
-            var fakerFunc = this.faker[props[0]][props[1]];
-            if (!fakerFunc) {
-              fakerFunc = this.faker.lorem.text;
-            }
-            items.push(fakerFunc());
-          }
-        }
-        return items
+        return this.generatePropertyArray({ type: type, total: total, properties: properties, fakerType: fakerType })
       } else if (type === 'object') {
         return this.generateItem(properties, 1)
       } else {
-        var props$1 = fakerType.split('.');
-        if (props$1.length < 2) {
-          this.app.handleError(("missing props: " + props$1 + " " + (Object.keys(properties).join(', ')) + " " + type));
+        var props = fakerType.split('.');
+        if (props.length < 2) {
+          this.app.handleError(("missing props: " + props + " " + (Object.keys(properties).join(', ')) + " " + type));
         }
-        var fakerFunc$1 = this.faker[props$1[0]][props$1[1]];
-        if (!fakerFunc$1) {
-          fakerFunc$1 = this.faker.lorem.text;
+        var fakerFunc = this.faker[props[0]][props[1]];
+        if (!fakerFunc) {
+          fakerFunc = this.faker.lorem.text;
         }
-        return fakerFunc$1()
+        return fakerFunc()
       }
+    };
+    /**
+     * @method generatePropertyArray
+     * Generate a array property.
+     * @param {string} type - Type of the property. defaults to `string`.
+     * @param {number} total - If type is `array` sets the total number of items to be created in the array.
+     * @param {number} properties - If type is `object` or `array` and fakerType is set to `object` provides the schema of the object to be generated.
+     * @param {string} fakerType - Type of faker to be used. Check the possible [API methods](http://marak.github.io/faker.js/#toc7__anchor)
+     */
+    MockerService.prototype.generatePropertyArray = function generatePropertyArray (ref) {
+      var type = ref.type; if ( type === void 0 ) type = 'string';
+      var total = ref.total; if ( total === void 0 ) total = 4;
+      var properties = ref.properties; if ( properties === void 0 ) properties = {};
+      var fakerType = ref.fakerType; if ( fakerType === void 0 ) fakerType = 'lorem.text';
+
+      if (!this.faker) {
+        return
+      }
+      var items = [];
+      for (var i = 0; total > i; i++) {
+        if (fakerType === 'object') {
+          var obj = this.generateItem(properties, i + 1);
+          items.push(obj);
+        } else {
+          var props = fakerType.split('.');
+          if (props.length < 2) {
+            this.app.handleError(("missing props: " + props + " " + (Object.keys(properties).join(', ')) + " " + type));
+          }
+          var fakerFunc = this.faker[props[0]][props[1]];
+          if (!fakerFunc) {
+            fakerFunc = this.faker.lorem.text;
+          }
+          items.push(fakerFunc());
+        }
+      }
+      return items
     };
     /**
      * @method destroy
@@ -873,6 +943,55 @@
      */
      MockerService.prototype.destroy = function destroy () {
       this.removeAllListeners();
+    };
+    /**
+     * @method create
+     * Create a new item in the generated cache
+     * @param {object} item - Properties of the item to be created
+     * @returns {object} - Item created
+     */
+    MockerService.prototype.create = function create (item) {
+      var this$1 = this;
+
+      return this.app.transport.post(("" + (this.name)), item).then(function (res) {
+        return res
+      }).catch(function (err) {
+        var errMessage = err.response.data.message;
+        this$1.emit('error', errMessage);
+      })
+    };
+    /**
+     * @method patch
+     * Patch existing item in the generated cache
+     * @param {number|string} id - Id of the item to be updated
+     * @param {object} item - Properties of the item to be updated
+     * @returns {object} - Item patch
+     */
+    MockerService.prototype.patch = function patch (id, item) {
+      var this$1 = this;
+
+      return this.app.transport.post(((this.name) + "/" + id), item).then(function (res) {
+        return res
+      }).catch(function (err) {
+        var errMessage = err.response.data.message;
+        this$1.emit('error', errMessage);
+      })
+    };
+    /**
+     * @method delete
+     * Delete existing item in the generated cache
+     * @param {number|string} id - Id of the item to be deleted
+     * @returns {object} - Item deleted
+     */
+    MockerService.prototype.delete = function delete$1 (id) {
+      var this$1 = this;
+
+      return this.app.transport.delete(((this.name) + "/" + id)).then(function (res) {
+        return res
+      }).catch(function (err) {
+        var errMessage = err.response.data.message;
+        this$1.emit('error', errMessage);
+      })
     };
     /**
      * @method find
@@ -922,17 +1041,44 @@
           items: [],
           total: 0,
           isFindPending: false,
-          isGetPending: false
+          isGetPending: false,
+          isCreatePending: false,
+          isPatchPending: false,
+          isDeletePending: false
         },
         mutations: {
           ADD_ITEM_TO_STORE: function ADD_ITEM_TO_STORE (state, item) {
-            var exists = !!state.items.filter(function (i) { return i.id === item.id; })[0];
+            var exists = !!state.items
+              .map(function (it, i) {
+                return Object.assign({}, it, { index: i })
+              })
+              .filter(function (i) { return i.id === item.id; })[0];
             if (!exists) {
               state.items.push(item);
+            } else {
+              state.items = state.items.splice(exists.index, 1, item);
             }
           },
           UPDATE_TOTAL: function UPDATE_TOTAL (state, total) {
             state.total = total;
+          },
+          IS_CREATE_PENDING: function IS_CREATE_PENDING (state) {
+            state.isCreatePending = true;
+          },
+          CREATE_FINISHED: function CREATE_FINISHED (state) {
+            state.isCreatePending = false;
+          },
+          IS_PATCH_PENDING: function IS_PATCH_PENDING (state) {
+            state.isPatchPending = true;
+          },
+          PATCH_FINISHED: function PATCH_FINISHED (state) {
+            state.isPatchPending = false;
+          },
+          IS_DELETE_PENDING: function IS_DELETE_PENDING (state) {
+            state.isDeletePending = true;
+          },
+          DELETE_FINISHED: function DELETE_FINISHED (state) {
+            state.isDeletePending = false;
           },
           IS_FIND_PENDING: function IS_FIND_PENDING (state) {
             state.isFindPending = true;
@@ -976,6 +1122,44 @@
               commit('GET_FINISHED');
               return res
             })
+          },
+          createItem: function createItem(ref, params) {
+            var commit = ref.commit;
+
+            commit('IS_CREATE_PENDING');
+            return self.create(params).then(function (item) {
+              commit('ADD_ITEM_TO_STORE', item);
+              return item
+            }).finally(function (res) {
+              commit('CREATE_FINISHED');
+              return res
+            })
+          },
+          patchItem: function patchItem(ref, ref$1) {
+            var commit = ref.commit;
+            var id = ref$1.id;
+            var params = ref$1.params;
+
+            commit('IS_PATCH_PENDING');
+            return self.patch(id, params).then(function (item) {
+              commit('ADD_ITEM_TO_STORE', item);
+              return item
+            }).finally(function (res) {
+              commit('PATCH_FINISHED');
+              return res
+            })
+          },
+          deleteItem: function deleteItem(ref, id) {
+            var commit = ref.commit;
+
+            commit('IS_PATCH_PENDING');
+            return self.delete(id).then(function (item) {
+              commit('ADD_ITEM_TO_STORE', item);
+              return item
+            }).finally(function (res) {
+              commit('PATCH_FINISHED');
+              return res
+            })
           }
         },
         getters: {
@@ -1008,6 +1192,7 @@
       var host = ref.host; if ( host === void 0 ) host = 'localhost';
       var services = ref.services; if ( services === void 0 ) services = {};
       var servicesPath = ref.servicesPath;
+      var customRoutes = ref.customRoutes; if ( customRoutes === void 0 ) customRoutes = [];
       var debug = ref.debug; if ( debug === void 0 ) debug = false;
 
       EventEmitter.call(this);
@@ -1017,9 +1202,13 @@
       this._port = port;
       this._services = services;
       this._servicesPath = servicesPath;
+      this._customRoutes = customRoutes;
       this.debug = debug;
       this.transport = {
-        get: function (url) { return this$1.transportGet(url); }
+        get: function (url) { return this$1.transportGet(url); },
+        post: function (url, data) { return this$1.transportPost(url, data); },
+        put: function (url, data) { return this$1.transportPost(url, data); },
+        delete: function (url) { return this$1.transportDelete(url); },
       };
     }
 
@@ -1035,7 +1224,7 @@
     prototypeAccessors.host.get = function () { return this._host };
     /**
      * Getter for the port option
-     * @type {string|number}
+     * @type {number}
      */
     prototypeAccessors.port.get = function () { return this._port };
     /**
@@ -1088,7 +1277,7 @@
     };
     /**
      * @method transportGet
-     * Mocks a url request
+     * Mocks a url GET request
      */
     MockerCore.prototype.transportGet = function transportGet (url) {
       if (!url) {
@@ -1108,6 +1297,59 @@
         var service$1 = url.split('/')[0];
         var params$1 = url.split('/')[1];
         return Promise.resolve({ data: this.service(service$1).items.filter(function (item) { return item.id === parseInt(params$1); })[0] })
+      }
+    };
+    /**
+     * @method transportPost
+     * Mocks a url POST / PUT request
+     */
+    MockerCore.prototype.transportPost = function transportPost (url, data) {
+      if (!url) {
+        this.handleError('No path');
+      } else if (!data) {
+        this.handleError('No data');
+      } else if (typeof data !== 'object' || Array.isArray(data)) {
+        this.handleError('Wrong data type');
+      }
+      var service = url.split('/')[0];
+      var id = url.split('/')[1];
+      if (id) {
+        var item = this.service(service).get(id);
+        var schema = this.service(service).schema;
+        Object.keys(schema).forEach(function (key) {
+          if (data[key] || data[key] === null) {
+            item[key] = data[key];
+          }
+        });
+        return Promise.resolve(item)
+      } else {
+        var item$1 = Object.assign({}, data, {
+          id: this.service(service).items.length
+        });
+        this.service(service).items.push(item$1);
+        return Promise.resolve(item$1)
+      }
+    };
+    /**
+     * @method transportDelete
+     * Mocks a url DELETE request
+     */
+    MockerCore.prototype.transportDelete = function transportDelete (url) {
+      if (!url) {
+        this.handleError('No path');
+      } else if (!id) {
+        this.handleError('No id');
+      } else if (['number', 'string'].includes(typeof body)) {
+        this.handleError('Wrong id type');
+      }
+      var service = url.split('/')[0];
+      var id = parseInt(url.split('/')[1]);
+      var item = this.service(service).get(id);
+      if (item) {
+        this.service(service).items = this.service(service).items.filter(function (i) { return i.id !== parseInt(id); });
+        return Promise.resolve(item)
+      } else {
+        return Promise.reject(new Error('Item does not exist'))
       }
     };
     /**
@@ -1148,9 +1390,13 @@
      * Handle error
      * @param err - Error message
      */
-    MockerCore.prototype.handleError = function handleError (err) {
-      this.emit('error', err);
-      throw new Error(err)
+    MockerCore.prototype.handleError = function handleError (errType, err) {
+      var errorMsg = err || errType;
+      if (err) {
+        throw this.emit('error', Boom__default['default'][errType](errorMsg))
+      } else {
+        throw this.emit('error', new Error(errorMsg))
+      }
     };
     /**
      * @method log

@@ -35,6 +35,14 @@ export default class MockerServer extends MockerCore {
         cors: true
       }
     })
+    if (this._customRoutes) {
+      const routes = this._customRoutes.map((route) => {
+        return Object.assign({}, route, {
+          handler: (request, h) => route.handler(request, this, h)
+        })
+      })
+      this._server.route(routes)
+    }
   }
   /**
    * @method start

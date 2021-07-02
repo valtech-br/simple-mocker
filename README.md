@@ -50,10 +50,13 @@ const mocker = new MockerServer({
 const userService = mocker.service('users')
 ```
 
-The MockerService class expose 3 main functions:
+The MockerService class expose 6 main functions:
 
 | Name | Arguments | Returns |
 |------|-----------|---------|
+| create | `object` | `Promise(Object<Item>)`
+| patch | `id <number>`, `object` | `Promise(Object<Item>)`
+| delete | `id <number>` | `Promise(Object<Item>)`
 | find | `object` `{ limit, skip }` | `Promise(Object<{ total:Number, data:Array }>)`
 | get  | `id <number>`  | `Promise(Object)`
 | createStore  | `undefined`  | `VuexModule`
